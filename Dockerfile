@@ -1,5 +1,5 @@
-ARG RUNTIME = linux-musl-x64
-ARG DOTNET_VER = 10.0
+ARG RUNTIME="linux-musl-x64"
+ARG DOTNET_VER="10.0"
 
 FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VER}-alpine AS build
 WORKDIR /app

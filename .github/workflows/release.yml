@@ -47,4 +47,5 @@ jobs:
           platforms: linux/amd64
           build-args: |
             RUNTIME=linux-musl-x64
+            DOTNET_VER=10.0
 
