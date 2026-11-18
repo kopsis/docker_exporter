@@ -19,8 +19,8 @@ jobs:
     - name: Publish to Registry
       uses: elgohr/Publish-Docker-Github-Action@master
       with:
-        name: prometheusnet/docker_exporter:cb
-        username: prometheusnet
+        name: kopsis/docker_exporter:cb
+        username: kopsis
         password: ${{ secrets.docker_hub_token }}
         snapshot: true
         buildoptions: '--label version=${{ steps.make_version_string.outputs.versionstring }}'
