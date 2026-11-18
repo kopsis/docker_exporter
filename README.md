@@ -2,6 +2,8 @@
 
 This app exports metrics about a Docker installation and any running containers to the [Prometheus](https://prometheus.io) metrics and monitoring system.
 
+The exporter is written in Go. Its only non-standard dependencies are the Docker Go API and the Prometheus Go client.
+
 ![](Screenshot.png)
 
 # Quick start
@@ -61,6 +63,8 @@ To upgrade to a new version:
 Error messages can typically be found in `docker logs docker_exporter`.
 
 You can append the `--verbose` parameter to the end of the `docker run` command to show more detailed information in the logs.
+
+Use `--docker-url` to connect to a different Docker endpoint. The default is `unix:///var/run/docker.sock`.
 
 Docker can occasionally be very slow or even hang due to ongoing Docker operations blocking the information-gathering by this app. The app will try its best to work around such slowness:
 

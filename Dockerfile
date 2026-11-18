@@ -1,28 +1,12 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
-
-ARG TARGETARCH
-
+FROM golang:1.22-alpine AS build
 WORKDIR /app
+COPY go.mod ./
+RUN go mod download
+COPY *.go ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o docker_exporter .
 
-# Separate layers here to avoid redoing dependencies on code change.
-COPY *.sln .
-COPY *.csproj .
-RUN dotnet restore
-
-# Now the code.
-COPY . .
-
-# DISABLED TO TEST ARM BUILD COMMAND
-#RUN if [ "$TARGETARCH" = "amd64" ]; then \
-#      dotnet publish -r linux-musl-x64 -c Release -o out; \
-#    else \
-#      dotnet publish -r linux-musl-arm64 -c Release -o out; \
-#    fi
-RUN dotnet publish -r linux-musl-arm64 -c Release -o out
-
-FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-alpine AS runtime
-RUN apk add --upgrade --no-cache libintl
+FROM alpine:3.20 AS runtime
 WORKDIR /app
-COPY --from=build /app/out .
+COPY --from=build /app/docker_exporter .
 
 ENTRYPOINT ["./docker_exporter"]
