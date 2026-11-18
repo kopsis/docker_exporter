@@ -6,7 +6,7 @@ on:
 
   push:
     branches:
-      - main
+      - master
 
 env:
   REGISTRY: ghcr.io
@@ -30,10 +30,21 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build and push Docker image
+      - name: Build and push ARM Docker image
         uses: docker/build-push-action@v7
         with:
           push: true
           tags: ghcr.io/kopsis/docker_exporter:latest
-          platforms: linux/amd64, linux/arm64
+          platforms: linux/arm64
+          build-args: |
+            RUNTIME=linux-musl-arm64
+
+      - name: Build and push x64 Docker image
+        uses: docker/build-push-action@v7
+        with:
+          push: true
+          tags: ghcr.io/kopsis/docker_exporter:latest
+          platforms: linux/amd64
+          build-args: |
+            RUNTIME=linux-musl-x64
 
