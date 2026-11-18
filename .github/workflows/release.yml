@@ -33,10 +33,10 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
-          context:
-            file: ./Dockerfile
-            push: true
-            tags: |
-              ghcr.io/kopsis/docker_exporter:latest
-            platforms: linux/amd64, linux/arm64
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ghcr.io/kopsis/docker_exporter:latest
+          platforms: linux/amd64, linux/arm64
 
