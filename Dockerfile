@@ -21,6 +21,7 @@ COPY . .
 RUN dotnet publish -r linux-musl-arm64 -c Release -o out
 
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-alpine AS runtime
+RUN apk add --upgrade --no-cache libintl
 WORKDIR /app
 COPY --from=build /app/out .
 
