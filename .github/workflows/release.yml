@@ -35,7 +35,5 @@ jobs:
         with:
           push: true
           tags: ghcr.io/kopsis/docker_exporter:latest
-          platforms: linux/amd64
-          build-args: |
-            RUNTIME=linux-musl-x64
+          platforms: linux/amd64,linux/arm64
 

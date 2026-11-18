@@ -1,6 +1,6 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 
-ARG RUNTIME="linux-musl-x64"
+ARG TARGETARCH
 
 WORKDIR /app
 
@@ -11,7 +11,11 @@ RUN dotnet restore
 
 # Now the code.
 COPY . .
-RUN dotnet publish -r ${RUNTIME} -c Release -o out
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+      dotnet publish -r linux-musl-x64 -c Release -o out \
+    else \
+      dotnet publish -r linux-musl-arm64 -c Release -o out \
+    fi
 
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-alpine AS runtime
 WORKDIR /app
