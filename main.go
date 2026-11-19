@@ -14,25 +14,26 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/moby/moby/api/types"
-	"github.com/moby/moby/client"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
-	version               = "__VERSIONSTRING__"
-	defaultDockerURL      = "unix:///var/run/docker.sock"
-	listenAddress         = ":9417"
-	commandTimeout        = 30 * time.Second
-	inlineUpdateTimeout   = 20 * time.Second
-	totalUpdateTimeout    = 2 * time.Minute
+	version             = "__VERSIONSTRING__"
+	defaultDockerURL    = "unix:///var/run/docker.sock"
+	listenAddress       = ":9417"
+	commandTimeout      = 30 * time.Second
+	inlineUpdateTimeout = 20 * time.Second
+	totalUpdateTimeout  = 2 * time.Minute
 )
 
 var durationBuckets = prometheus.ExponentialBuckets(0.5, 1.5, 14)
 
 type exporter struct {
-	client *client.Client
+	client  *client.Client
 	metrics *metrics
 
 	mu      sync.Mutex
@@ -126,7 +127,7 @@ func (e *exporter) listContainers(ctx context.Context) ([]types.Container, error
 	start := time.Now()
 	callCtx, cancel := context.WithTimeout(ctx, commandTimeout)
 	defer cancel()
-	containers, err := e.client.ContainerList(callCtx, types.ContainerListOptions{All: true})
+	containers, err := e.client.ContainerList(callCtx, container.ListOptions{All: true})
 	e.metrics.listDuration.Observe(time.Since(start).Seconds())
 	return containers, err
 }
@@ -135,7 +136,7 @@ func (e *exporter) updateContainer(ctx context.Context, listed types.Container) 
 	name := displayName(listed)
 	inspectStart := time.Now()
 	callCtx, cancel := context.WithTimeout(ctx, commandTimeout)
-	container, err := e.client.ContainerInspect(callCtx, listed.ID)
+	inspected, err := e.client.ContainerInspect(callCtx, listed.ID)
 	cancel()
 	e.metrics.inspectDuration.Observe(time.Since(inspectStart).Seconds())
 	if err != nil {
@@ -145,8 +146,8 @@ func (e *exporter) updateContainer(ctx context.Context, listed types.Container) 
 		return
 	}
 
-	var stats types.StatsJSON
-	if container.State != nil && container.State.Running {
+	var stats container.StatsResponse
+	if inspected.State != nil && inspected.State.Running {
 		statsStart := time.Now()
 		callCtx, cancel = context.WithTimeout(ctx, commandTimeout)
 		response, statsErr := e.client.ContainerStats(callCtx, listed.ID, false)
@@ -168,8 +169,8 @@ func (e *exporter) updateContainer(ctx context.Context, listed types.Container) 
 		}
 	}
 
-	e.metrics.updateState(name, container)
-	if container.State != nil && container.State.Running {
+	e.metrics.updateState(name, inspected)
+	if inspected.State != nil && inspected.State.Running {
 		e.metrics.updateResources(name, stats)
 	} else {
 		e.metrics.deleteResources(name)

@@ -6,32 +6,33 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 type metrics struct {
-	containerCount       prometheus.Gauge
-	listErrors           prometheus.Counter
-	inlineTimeouts       prometheus.Counter
+	containerCount      prometheus.Gauge
+	listErrors          prometheus.Counter
+	inlineTimeouts      prometheus.Counter
 	successfulProbeTime prometheus.Gauge
-	probeDuration        *prometheus.Histogram
-	listDuration         *prometheus.Histogram
-	inspectDuration      *prometheus.Histogram
-	statsDuration        *prometheus.Histogram
-	failedProbe          *prometheus.CounterVec
-	restartCount         *prometheus.GaugeVec
-	runningState         *prometheus.GaugeVec
-	startTime            *prometheus.GaugeVec
-	cpuUsage             *prometheus.GaugeVec
-	cpuCapacity          *prometheus.GaugeVec
-	memoryUsage          *prometheus.GaugeVec
-	networkIn            *prometheus.GaugeVec
-	networkOut           *prometheus.GaugeVec
-	diskRead             *prometheus.GaugeVec
-	diskWrite            *prometheus.GaugeVec
+	probeDuration       prometheus.Histogram
+	listDuration        prometheus.Histogram
+	inspectDuration     prometheus.Histogram
+	statsDuration       prometheus.Histogram
+	failedProbe         *prometheus.CounterVec
+	restartCount        *prometheus.GaugeVec
+	runningState        *prometheus.GaugeVec
+	startTime           *prometheus.GaugeVec
+	cpuUsage            *prometheus.GaugeVec
+	cpuCapacity         *prometheus.GaugeVec
+	memoryUsage         *prometheus.GaugeVec
+	networkIn           *prometheus.GaugeVec
+	networkOut          *prometheus.GaugeVec
+	diskRead            *prometheus.GaugeVec
+	diskWrite           *prometheus.GaugeVec
 
-	mu      sync.Mutex
-	names   map[string]struct{}
+	mu    sync.Mutex
+	names map[string]struct{}
 }
 
 func newMetrics() *metrics {
@@ -63,59 +64,91 @@ func (m *metrics) collectors() []prometheus.Collector {
 }
 
 func (m *metrics) describe(ch chan<- *prometheus.Desc) {
-	for _, collector := range m.collectors() { collector.Describe(ch) }
+	for _, collector := range m.collectors() {
+		collector.Describe(ch)
+	}
 }
 
 func (m *metrics) collectMetrics(ch chan<- prometheus.Metric) {
-	for _, collector := range m.collectors() { collector.Collect(ch) }
+	for _, collector := range m.collectors() {
+		collector.Collect(ch)
+	}
 }
 
 func (m *metrics) synchronize(containers []types.Container) {
 	current := make(map[string]struct{}, len(containers))
-	for _, container := range containers { current[displayName(container)] = struct{}{} }
+	for _, container := range containers {
+		current[displayName(container)] = struct{}{}
+	}
 	m.mu.Lock()
 	for name := range m.names {
-		if _, ok := current[name]; !ok { m.deleteAll(name) }
+		if _, ok := current[name]; !ok {
+			m.deleteAll(name)
+		}
 	}
 	m.names = current
 	m.mu.Unlock()
 }
 
 func (m *metrics) unpublishAll() {
-	m.mu.Lock(); defer m.mu.Unlock()
-	for name := range m.names { m.unpublish(name) }
-}
-
-func (m *metrics) unpublish(name string) {
-	m.restartCount.DeleteLabelValues(name); m.runningState.DeleteLabelValues(name); m.startTime.DeleteLabelValues(name); m.deleteResources(name)
-}
-
-func (m *metrics) deleteAll(name string) {
-	m.failedProbe.DeleteLabelValues(name); m.unpublish(name)
-}
-
-func (m *metrics) deleteResources(name string) {
-	m.cpuUsage.DeleteLabelValues(name); m.cpuCapacity.DeleteLabelValues(name); m.memoryUsage.DeleteLabelValues(name); m.networkIn.DeleteLabelValues(name); m.networkOut.DeleteLabelValues(name); m.diskRead.DeleteLabelValues(name); m.diskWrite.DeleteLabelValues(name)
-}
-
-func (m *metrics) updateState(name string, c types.ContainerJSON) {
-	if c.State == nil { return }
-	m.restartCount.WithLabelValues(name).Set(float64(c.RestartCount))
-	state := float64(0); if c.State.Running { state = 1 } else if c.State.Restarting { state = 0.5 }
-	m.runningState.WithLabelValues(name).Set(state)
-	if c.State.Running && strings.TrimSpace(c.State.StartedAt) != "" {
-		if t, err := parseDockerTime(c.State.StartedAt); err == nil { m.startTime.WithLabelValues(name).Set(float64(t.UnixNano()) / 1e9) }
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for name := range m.names {
+		m.unpublish(name)
 	}
 }
 
-func (m *metrics) updateResources(name string, stats types.StatsJSON) {
+func (m *metrics) unpublish(name string) {
+	m.restartCount.DeleteLabelValues(name)
+	m.runningState.DeleteLabelValues(name)
+	m.startTime.DeleteLabelValues(name)
+	m.deleteResources(name)
+}
+
+func (m *metrics) deleteAll(name string) {
+	m.failedProbe.DeleteLabelValues(name)
+	m.unpublish(name)
+}
+
+func (m *metrics) deleteResources(name string) {
+	m.cpuUsage.DeleteLabelValues(name)
+	m.cpuCapacity.DeleteLabelValues(name)
+	m.memoryUsage.DeleteLabelValues(name)
+	m.networkIn.DeleteLabelValues(name)
+	m.networkOut.DeleteLabelValues(name)
+	m.diskRead.DeleteLabelValues(name)
+	m.diskWrite.DeleteLabelValues(name)
+}
+
+func (m *metrics) updateState(name string, c types.ContainerJSON) {
+	if c.State == nil {
+		return
+	}
+	m.restartCount.WithLabelValues(name).Set(float64(c.RestartCount))
+	state := float64(0)
+	if c.State.Running {
+		state = 1
+	} else if c.State.Restarting {
+		state = 0.5
+	}
+	m.runningState.WithLabelValues(name).Set(state)
+	if c.State.Running && strings.TrimSpace(c.State.StartedAt) != "" {
+		if t, err := parseDockerTime(c.State.StartedAt); err == nil {
+			m.startTime.WithLabelValues(name).Set(float64(t.UnixNano()) / 1e9)
+		}
+	}
+}
+
+func (m *metrics) updateResources(name string, stats container.StatsResponse) {
 	windows := stats.MemoryStats.Commit != 0
 	if windows {
 		// Docker reports Windows CPU usage in 100 ns ticks. The origin is
 		// intentionally arbitrary, matching the original exporter behavior.
 		m.cpuCapacity.WithLabelValues(name).Set(float64(time.Since(processStart).Nanoseconds() / 100))
 		usage := float64(stats.CPUStats.CPUUsage.TotalUsage)
-		if stats.NumProcs > 0 { usage /= float64(stats.NumProcs) }
+		if stats.NumProcs > 0 {
+			usage /= float64(stats.NumProcs)
+		}
 		m.cpuUsage.WithLabelValues(name).Set(usage)
 		m.memoryUsage.WithLabelValues(name).Set(float64(stats.MemoryStats.Commit))
 	} else {
@@ -139,8 +172,10 @@ func (m *metrics) updateResources(name string, stats types.StatsJSON) {
 	} else {
 		for _, entry := range stats.BlkioStats.IoServiceBytesRecursive {
 			switch strings.ToLower(entry.Op) {
-			case "read": diskRead += float64(entry.Value)
-			case "write": diskWrite += float64(entry.Value)
+			case "read":
+				diskRead += float64(entry.Value)
+			case "write":
+				diskWrite += float64(entry.Value)
 			}
 		}
 	}
